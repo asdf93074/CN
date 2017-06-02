@@ -6,7 +6,7 @@ import copy
 from threading import Thread
 
 def server():
-    global neighboursCosts, nT, change, costTable
+    global neighboursCosts, nT, change, costTable, ownLinks
     timeout = []
     s = so.socket(so.AF_INET, so.SOCK_DGRAM)
     s.bind(('127.0.0.1', int(sys.argv[2])))
@@ -16,6 +16,8 @@ def server():
         if newData[0] != sys.argv[1]:
             if newData[1] == "KEEP-ALIVE":
                 nT[newData[0]] = time.time()
+            elif newData[0] == "COST-CHANGE":
+                ownLinks[newData[1]] = newData[2]
             else:
                 neighboursCosts[newData[0]] = newData
                 bellford()
@@ -84,7 +86,6 @@ def bellford():
                 p = findNeighbour(x, costTable)
                 if t != 0:
                     if costTable[t][3][1] == x:
-                        print costTable[t][1], costTable[p][1], neighboursCosts[x][y][1]
                         costTable[t][1] = costTable[p][1] + neighboursCosts[x][y][1]
                     else:
                         if costTable[p][1] + neighboursCosts[x][y][1] < costTable[t][1]:
