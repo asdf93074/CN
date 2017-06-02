@@ -2,6 +2,7 @@ import socket as so
 import sys
 import pickle
 import time
+import copy
 from threading import Thread
 
 def server():
@@ -21,7 +22,6 @@ def server():
         for x in nT:
             temp = time.time()
             if temp - nT[x] > 11:
-                print costTable[findNeighbour(x, costTable)][1]
                 costTable[findNeighbour(x, costTable)][1] = float("inf")
                 print x, "timed out"
                 timeout.append(x)
@@ -37,14 +37,17 @@ def broadcast():
             change = 0
             c = so.socket(so.AF_INET, so.SOCK_DGRAM)
             global costTable
-            for i in ownLinks:
-                modTable = costTable
-                #for d in range(len(costTable)-1):
-                #    d = d + 1
-                #    if len(modTable[d][3]) == 2:    
-                #        if modTable[d][3][1] == costTable[i + 1][0]:
+            for i in range(len(costTable)-1):
+                modTable = copy.deepcopy(costTable)
+                #print modTable
+                for d in range(len(costTable)-1):
+                    if len(modTable[d + 1][3]) == 2:
+                        if modTable[d + 1][3][1] == costTable[i+1][0]:
+                            modTable[d + 1][1] = float("inf")
+                #print "SENDING " + str(modTable) + " TO " + costTable[i + 1][0]
                 packet = pickle.dumps(modTable)
-                c.sendto(packet, ('127.0.0.1',ownLinks[i][1]))
+                c.sendto(packet, ('127.0.0.1',costTable[i+1][2]))
+                #print "END"
 
 def timers():
     global nT, costTable, change, ownLinks
@@ -67,7 +70,7 @@ def keepalive():
     pd = pickle.dumps(p)
     while 1:
         for i in ownLinks:
-            k.sendto(pd, ('127.0.0.1',ownLinks[i][1]))
+            k.sendto(pd, ('127.0.0.1', ownLinks[i][1]))
         time.sleep(10)
 
 def bellford():
@@ -81,6 +84,7 @@ def bellford():
                 p = findNeighbour(x, costTable)
                 if t != 0:
                     if costTable[t][3][1] == x:
+                        print costTable[t][1], costTable[p][1], neighboursCosts[x][y][1]
                         costTable[t][1] = costTable[p][1] + neighboursCosts[x][y][1]
                     else:
                         if costTable[p][1] + neighboursCosts[x][y][1] < costTable[t][1]:
@@ -140,4 +144,3 @@ ST.join()
 Broad.join()
 keep.join()
 #timeOut.join()
-
