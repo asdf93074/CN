@@ -17,7 +17,16 @@ def server():
             if newData[1] == "KEEP-ALIVE":
                 nT[newData[0]] = time.time()
             elif newData[0] == "COST-CHANGE":
-                ownLinks[newData[1]] = newData[2]
+                ct1 = ownLinks[newData[1]][0]
+                ownLinks[newData[1]][0] = newData[2]
+                ct = findNeighbour(newData[1],costTable)
+                if costTable[ct][1] > ownLinks[newData[1]][0]:
+                    costTable[ct][1] = ownLinks[newData[1]][0]
+                    for i in range(len(costTable)-1):
+                        if len(costTable[i + 1][3]) == 2 and costTable[i + 1][0] != newData[1]:
+                            if costTable[i + 1][3][1] == newData[1]:
+                                costTable[i + 1][1] = costTable[i + 1][1] - ct1 + ownLinks[newData[1]][0]
+                    change = 1
             else:
                 neighboursCosts[newData[0]] = newData
                 bellford()
@@ -84,17 +93,22 @@ def bellford():
             if neighboursCosts[x][y][0] != sys.argv[1] and x != sys.argv[1]:
                 t = findNeighbour(neighboursCosts[x][y][0], costTable)
                 p = findNeighbour(x, costTable)
-                if t != 0:
-                    if costTable[t][3][1] == x:
-                        costTable[t][1] = costTable[p][1] + neighboursCosts[x][y][1]
-                    else:
-                        if costTable[p][1] + neighboursCosts[x][y][1] < costTable[t][1]:
+                if p != 0:
+                    if t != 0:
+                        if costTable[t][3][1] == x:
                             costTable[t][1] = costTable[p][1] + neighboursCosts[x][y][1]
-                            costTable[t][3] = costTable[0] + x
-                            change = 1
-                else:
-                    change = 1
-                    costTable.append([str(neighboursCosts[x][y][0]),float(costTable[p][1] + neighboursCosts[x][y][1]),int(neighboursCosts[x][y][2]),str(costTable[0]+x)])
+                        else:
+                            try:
+                                if costTable[p][1] + neighboursCosts[x][y][1] < costTable[t][1]:
+                                    costTable[t][1] = costTable[p][1] + neighboursCosts[x][y][1]
+                                    costTable[t][3] = costTable[0] + x
+                                    change = 1
+                            except:
+                                print x, costTable
+                    else:
+                        change = 1
+                        costTable.append([str(neighboursCosts[x][y][0]),float(costTable[p][1] + neighboursCosts[x][y][1]),
+                                          int(neighboursCosts[x][y][2]),str(costTable[0]+x)])
     for z in range(len(costTable) - 1):
         print "Least cost path to router " + costTable[z + 1][0] + ": " + str(costTable[z + 1][3]) + " and the cost is " + str(costTable[z + 1][1])
       
