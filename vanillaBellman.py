@@ -7,7 +7,7 @@ import time
 
 class Server(threading.Thread):
     def run(self):
-        global ownName, ownPort, DVTableNeighbours, nT, ownLinksCosts, DVT
+        global ownName, ownPort, DVTableNeighbours, nT, ownLinksCosts, DVT, change, ownLinksHop
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.bind(("127.0.0.1", int(sys.argv[2])))
         timeout = []
@@ -16,17 +16,30 @@ class Server(threading.Thread):
             data = pickle.loads(msg)
             if data[0] == "KEEP-ALIVE":
                 nT[data[1]] = time.time()
+            elif data[0] == "COST-CHANGE":
+                ownLinksCosts[data[1]] = data[2]
+                for m in ownLinksHop:
+                    if ownLinksHop[m] == data[1]:
+                        DVT[m] = float("inf")
+                BellmanFord()
             else:
                 DVTableNeighbours[data[0]] = data[1]
                 print "Recieved " + str(data[1]) + " From " + data[0]
                 BellmanFord()
             for i in nT:
                 temp = time.time()
-                if temp - nT[i] > 11:
+                if temp - nT[i] > 12:
                     print i, "timed out"
                     ownLinksCosts[i] = float("inf")
+                    DVT[i] = float("inf")
+                    DVTableNeighbours.pop(i, None)
+                    DVTableNeighbours = {}
+                    for j in ownLinksHop:
+                        if ownLinksHop[j] == i:
+                            DVT[j] = float("inf")
                     timeout.append(i)
                     BellmanFord()
+                    change = 1
             for j in range(len(timeout)):
                 nT.pop(timeout[j], None)
                 del timeout[j]
@@ -69,21 +82,27 @@ def BellmanFord():
     print "I am Router " + ownName
     for x in N:
         temp = []
+        hoptemp = {}
         if x in ownLinksCosts:
             temp.append(ownLinksCosts[x])
+            hoptemp[ownLinksCosts[x]] = x
         for y in DVTableNeighbours:
             temp.append(ownLinksCosts[y] + DVTableNeighbours[y][x])
+            hoptemp[(ownLinksCosts[y] + DVTableNeighbours[y][x])] = y
         old = copy.copy(DVT[x])
-        temp.append(old)
-        if x in ownLinksCosts:   
-            if ownLinksCosts[x] == float("inf"):
-                DVT[x] = float("inf")
-        else:
-            DVT[x] = min(temp)
+        if len(temp) == 0:
+            temp.append(old)
+        #hoptemp[old] = ownLinksHop[x]
+        DVT[x] = min(temp)
+        try:
+            ownLinksHop[x] = hoptemp[DVT[x]]
+        except:
+            print hoptemp, ownLinksHop
         if old != DVT[x]:
             change = 1
     for q in DVT:
-                print "Least cost path to " + q + ": " + " and the cost is " + str(DVT[q])
+                print "Least cost path to " + q + ": " + ownLinksHop[q] + " and the cost is " + str(DVT[q])
+    #DVTableNeighbours = {}
             
 
 N = ["A", "B", "C", "D", "E", "F"]
