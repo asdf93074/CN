@@ -42,7 +42,11 @@ def BellmanFord():
         for y in DVTableNeighbours:
             if x in ownLinksCosts:
                 temp.append(ownLinksCosts[x])
-            temp.append(ownLinksCosts)
+            temp.append(ownLinksCosts[y] + DVTableNeighbours[y][x])
+        old = DVT[x]
+        DVT[x] = min(temp)
+        if old != DVT[x]:
+            change = 1
 
 N = ["A", "B", "C", "D", "E", "F"]
 ownLinksCosts = {}
