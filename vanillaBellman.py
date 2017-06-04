@@ -1,36 +1,63 @@
-"asd"
 import threading
 import socket
 import sys
 import copy
 import pickle
 import time
+import logging
+
+logging.basicConfig(filemode='w')
 
 class Server(threading.Thread):
     def run(self):
-        global ownName, ownPort, DVTableNeighbours, nT, ownLinksCosts, DVT, change, ownLinksHop
+        global ownName, ownPort, DVTableNeighbours, nT, ownLinksCosts, DVT, change, ownLinksHop, logger
+        
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(2)
         s.bind(("127.0.0.1", int(sys.argv[2])))
+        
         timeout = []
+        holdDownTimer = 0
+        
         while True:
-            msg, cli = s.recvfrom(2048)
-            data = pickle.loads(msg)
-            if data[0] == "KEEP-ALIVE":
-                nT[data[1]] = time.time()
-            elif data[0] == "COST-CHANGE":
-                ownLinksCosts[data[1]] = data[2]
-                for m in ownLinksHop:
-                    if ownLinksHop[m] == data[1]:
-                        DVT[m] = float("inf")
-                BellmanFord()
+            try:
+                msg, cli = s.recvfrom(2048)
+                data = pickle.loads(msg)
+            except:
+                data = []
+            #logger.debug((data, time.time()))
+                
+            tt = time.time()
+            
+            if holdDownTimer == 0 or (holdDownTimer != 0 and tt - holdDownTimer >= 5):
+                if (holdDownTimer != 0 and tt - holdDownTimer >= 5):
+                    change = 1
+                    holdDownTimer = 0
+                    print "Hold-down ended."
+                if len(data) != 0:
+                    if data[0] == "KEEP-ALIVE":
+                        nT[data[1]] = time.time()
+                        #print "KEEPING ALIVE FIRST", data[1]
+                    elif data[0] == "COST-CHANGE":
+                        ownLinksCosts[data[1]] = data[2]
+                        for m in ownLinksHop:
+                            if ownLinksHop[m] == data[1]:
+                                DVT[m] = float("inf")
+                        BellmanFord()
+                    else:
+                        DVTableNeighbours[data[0]] = data[1]
+                        print "Recieved " + str(data[1]) + " From " + data[0]
+                        BellmanFord()
             else:
-                DVTableNeighbours[data[0]] = data[1]
-                print "Recieved " + str(data[1]) + " From " + data[0]
-                BellmanFord()
+                if len(data) != 0:
+                    if data[0] == "KEEP-ALIVE":
+                        nT[data[1]] = time.time()
+                        #print "KEEPING ALIVE", data[1]
+                        
             for i in nT:
                 temp = time.time()
                 if temp - nT[i] > 12:
-                    print i, "timed out"
+                    print i, " timed out. Implementing hold-down."
                     ownLinksCosts[i] = float("inf")
                     DVT[i] = float("inf")
                     DVTableNeighbours.pop(i, None)
@@ -40,27 +67,35 @@ class Server(threading.Thread):
                             DVT[j] = float("inf")
                     timeout.append(i)
                     BellmanFord()
-                    change = 1
+                    holdDownTimer = time.time()
+                    
             for j in range(len(timeout)):
-                nT.pop(timeout[j], None)
-                del timeout[j]
-                j = j - 1
-                
-
+                try:
+                    nT.pop(timeout[j], None)
+                    del timeout[j]
+                    j = j - 1
+                except:
+                    nT.pop(timeout[j - 1], None)
+                    del timeout[j - 1]
+                    
 class Broadcast(threading.Thread):
     def run(self):
         global ownLinksPorts, change, ownLinksHop, ownName
+        
         while True:
             if change == 1:
-                change = 0
                 global DVT
+                
+                change = 0
                 modDVT = {}
+
                 client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 for i in ownLinksPorts:
                     modDVT = copy.deepcopy(DVT)
                     for j in ownLinksHop:
                         if ownLinksHop[j] == i:
                             modDVT[j] = float("inf")
+                            
                     data = [ownName, modDVT]
                     packet = pickle.dumps(data)
                     client.sendto(packet, ("127.0.0.1",ownLinksPorts[i]))
@@ -69,9 +104,11 @@ class Broadcast(threading.Thread):
 class KeepAlive(threading.Thread):
     def run(self):
         global ownLinksPorts, ownName
+        
         k = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         data = ["KEEP-ALIVE", ownName]
         packet = pickle.dumps(data)
+        
         while True:
             for i in ownLinksPorts:
                 k.sendto(packet, ("127.0.0.1", ownLinksPorts[i]))
@@ -81,6 +118,7 @@ def BellmanFord():
     global ownLinksCosts, change, ownLinksHop, DVTableNeighbours, DVT, N, ownName
 
     print "I am Router " + ownName
+    
     for x in N:
         temp = []
         hoptemp = {}
@@ -90,21 +128,21 @@ def BellmanFord():
         for y in DVTableNeighbours:
             temp.append(ownLinksCosts[y] + DVTableNeighbours[y][x])
             hoptemp[(ownLinksCosts[y] + DVTableNeighbours[y][x])] = y
+            
         old = copy.copy(DVT[x])
         if len(temp) == 0:
             temp.append(old)
-        #hoptemp[old] = ownLinksHop[x]
         DVT[x] = min(temp)
         try:
-            ownLinksHop[x] = hoptemp[DVT[x]]
+            if DVT[x] in hoptemp:    
+                ownLinksHop[x] = hoptemp[DVT[x]]
         except:
-            print hoptemp, ownLinksHop
+            print hoptemp, ownLinksHop, DVT[x]
         if old != DVT[x]:
             change = 1
-    for q in DVT:
-                print "Least cost path to " + q + ": " + ownLinksHop[q] + " and the cost is " + str(DVT[q])
-    #DVTableNeighbours = {}
             
+    for q in DVT:
+                print "Least cost path to " + q + ": " + ownLinksHop[q] + " and the cost is " + str(DVT[q])           
 
 N = ["A", "B", "C", "D", "E", "F"]
 ownLinksCosts = {}
@@ -120,6 +158,7 @@ config = open(str(sys.argv[3]), "r")
 hostCount = int(config.readline())
 ownLinksCosts[ownName] = float(0)
 ownLinksHop[ownName] = ownName
+
 for x in range(hostCount):
     line = config.readline()
     configList = line.split()
@@ -136,18 +175,28 @@ for x in N:
     else:
         DVT[x] = float("inf")
 
-#print DVT
-
 change = 1
 
-ServerThread = Server()
-BroadcastThread = Broadcast()
-KeepaliveThread = KeepAlive()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
-ServerThread.start()
-BroadcastThread.start()
-KeepaliveThread.start()
+handler = logging.FileHandler(str(ownName) + " LOG.txt")
+handler.setLevel(logging.DEBUG)
 
-ServerThread.join()
-BroadcastThread.join()
-KeepaliveThread.join()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+
+logger.addHandler(handler)
+
+logger.debug("START")
+
+ThreadsPool = {}
+ThreadsPool["ServerThread"] = Server()
+ThreadsPool["BroadcastThread"] = Broadcast()
+ThreadsPool["KeepaliveThread"] = KeepAlive()
+
+for i in ThreadsPool:
+    ThreadsPool[i].start()
+
+for i in ThreadsPool:
+    ThreadsPool[i].join()
