@@ -1,0 +1,1 @@
+start cmd /k python "costChangeClient.py" "ConfigA.txt" "ConfigB.txt" "ConfigC.txt" "ConfigD.txt" "ConfigF.txt" "ConfigE.txt"

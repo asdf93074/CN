@@ -1,0 +1,6 @@
+start cmd /k python "vanillaBellman.py" A 5000 "ConfigA.txt"
+start cmd /k python "vanillaBellman.py" B 5001 "ConfigB.txt" 
+start cmd /k python "vanillaBellman.py" C 5002 "ConfigC.txt"
+start cmd /k python "vanillaBellman.py" D 5003 "ConfigD.txt" 
+start cmd /k python "vanillaBellman.py" F 5005 "ConfigF.txt" 
+start cmd /k python "vanillaBellman.py" E 5004 "ConfigE.txt"
